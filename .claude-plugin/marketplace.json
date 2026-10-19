@@ -1,0 +1,15 @@
+{
+  "name": "cc-droid",
+  "description": "Droid-style notification sounds for Claude Code",
+  "owner": {
+    "name": "irpepper",
+    "url": "https://github.com/irpepper"
+  },
+  "plugins": [
+    {
+      "name": "cc-droid",
+      "source": ".",
+      "description": "A little droid that chirps, beeps and grumbles so you can hear what your Claude Code sessions are doing."
+    }
+  ]
+}

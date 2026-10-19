@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+#
+# cc-droid - plays the droid sounds for Claude Code hook events.
+#
+#   cc-droid play <sound>     play one sound (what the hooks call)
+#   cc-droid test             play every sound in turn, with its name
+#   cc-droid mute | unmute    silence everything / turn it back on
+#   cc-droid volume [0-1]     show or set the volume (default 1)
+#   cc-droid status           muted?, volume, where custom sounds go
+#
+# Custom sounds: drop <sound>.wav into ~/.claude/cc-droid/sounds/ and it replaces
+# the built-in one (tools/normalize.sh in the repo prepares clips for this).
+#
+# Environment overrides:
+#   CC_DROID_HOME=/path      state + custom sounds folder (default ~/.claude/cc-droid)
+#   CC_DROID_MUTE=1          mute for one shell/session
+#   CC_DROID_VOLUME=0.5      volume for one shell/session
+#
+# `play` always exits 0: a hook that exits 2 on Stop would keep Claude running,
+# and a missing speaker should never get in the way of a session.
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILTIN="$HERE/sounds"
+STATE="${CC_DROID_HOME:-$HOME/.claude/cc-droid}"
+CUSTOM="$STATE/sounds"
+
+volume() {
+  if [ -n "${CC_DROID_VOLUME:-}" ]; then echo "$CC_DROID_VOLUME"
+  elif [ -f "$STATE/volume" ]; then head -n1 "$STATE/volume"
+  else echo 1; fi
+}
+
+muted() { [ -n "${CC_DROID_MUTE:-}" ] || [ -e "$STATE/muted" ]; }
+
+sound_path() {
+  if [ -f "$CUSTOM/$1.wav" ]; then echo "$CUSTOM/$1.wav"
+  elif [ -f "$BUILTIN/$1.wav" ]; then echo "$BUILTIN/$1.wav"; fi
+}
+
+play_file() {
+  local f="$1" vol; vol="$(volume)"
+  case "$(uname -s)" in
+    Darwin)
+      afplay -v "$vol" "$f" ;;
+    Linux)
+      if grep -qi microsoft /proc/version 2>/dev/null && command -v powershell.exe >/dev/null; then
+        powershell.exe -NoProfile -c "(New-Object Media.SoundPlayer '$(wslpath -w "$f")').PlaySync()"
+      elif command -v pw-play >/dev/null; then
+        pw-play --volume "$vol" "$f"
+      elif command -v paplay >/dev/null; then
+        paplay --volume "$(awk -v v="$vol" 'BEGIN { printf "%d", v * 65536 }')" "$f"
+      elif command -v aplay >/dev/null; then
+        aplay -q "$f"
+      elif command -v ffplay >/dev/null; then
+        ffplay -nodisp -autoexit -loglevel quiet -volume "$(awk -v v="$vol" 'BEGIN { printf "%d", v * 100 }')" "$f"
+      fi ;;
+    MINGW*|MSYS*|CYGWIN*)
+      powershell.exe -NoProfile -c "(New-Object Media.SoundPlayer '$(cygpath -w "$f")').PlaySync()" ;;
+  esac
+}
+
+cmd="${1:-}"; shift 2>/dev/null || true
+
+case "$cmd" in
+  play)
+    # Hooks send their JSON on stdin; drain it so the writer never blocks.
+    [ -t 0 ] || cat >/dev/null 2>&1
+    muted && exit 0
+    f="$(sound_path "${1:-}")"
+    [ -n "$f" ] && play_file "$f" >/dev/null 2>&1
+    exit 0 ;;
+
+  test)
+    for f in "$BUILTIN"/*.wav; do
+      name="$(basename "$f" .wav)"
+      p="$(sound_path "$name")"
+      tag=""; [ "$p" != "$f" ] && tag=" (custom)"
+      echo "  $name$tag"
+      play_file "$p"
+      sleep 0.4
+    done ;;
+
+  mute)
+    mkdir -p "$STATE" && touch "$STATE/muted" && echo "cc-droid sounds muted." ;;
+
+  unmute)
+    rm -f "$STATE/muted"; echo "cc-droid sounds on." ;;
+
+  volume)
+    if [ -z "${1:-}" ]; then echo "volume: $(volume)"; exit 0; fi
+    if ! awk -v v="$1" 'BEGIN { exit !(v ~ /^[0-9]*\.?[0-9]+$/ && v >= 0 && v <= 1) }'; then
+      echo "volume must be a number from 0 to 1, e.g. 0.5" >&2; exit 1
+    fi
+    mkdir -p "$STATE" && echo "$1" >"$STATE/volume" && echo "volume set to $1." ;;
+
+  status)
+    if muted; then echo "muted: yes"; else echo "muted: no"; fi
+    echo "volume: $(volume)"
+    echo "custom sounds: $CUSTOM"
+    n=$(ls "$CUSTOM"/*.wav 2>/dev/null | wc -l | tr -d ' ')
+    echo "custom sounds in use: $n" ;;
+
+  *)
+    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+esac

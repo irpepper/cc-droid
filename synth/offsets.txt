@@ -1,0 +1,11 @@
+# Per-clip loudness offsets in dB, relative to normalize.sh's target.
+# Sounds that fire constantly sit quieter; rare, important ones a bit more present.
+done             -3
+compact          -4
+subagent-start   -4
+subagent-stop    -4
+session-start    -2
+session-end      -2
+waiting          -1
+attention        +1
+query            +1

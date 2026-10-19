@@ -1,0 +1,13 @@
+{
+  "name": "cc-droid",
+  "version": "1.0.0",
+  "description": "A little droid that chirps, beeps and grumbles so you can hear what your Claude Code sessions are doing: needs approval, waiting on you, done, errors, subagents and more.",
+  "author": {
+    "name": "irpepper",
+    "url": "https://github.com/irpepper"
+  },
+  "homepage": "https://github.com/irpepper/cc-droid",
+  "repository": "https://github.com/irpepper/cc-droid",
+  "license": "MIT",
+  "keywords": ["sounds", "notifications", "hooks", "audio", "droid"]
+}
